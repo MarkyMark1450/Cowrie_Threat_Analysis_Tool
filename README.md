@@ -11,13 +11,44 @@ The goal of this project is to demonstrate practical cybersecurity log analysis 
 
 * Parse Cowrie honeypot JSON logs
 * Analyze attacker IP activity
-* Detect brute-force login attempts
-* Identify suspicious command usage
+* Detect brute-force login attempts using configurable thresholds
+* Identify suspicious command usage based on known attacker behavior
+* Detect long-duration sessions indicating potential compromise activity
 * Session duration analysis
 * Activity by hour visualization
 * Graph generation with matplotlib
 * Text report generation
 * Command-line interface with argparse
+
+**python src/live_monitor.py**
+* Tails Cowrie log files in real time
+* Parses incoming JSON log entries
+* Displays key fields such as timestamp, event type, source IP, and command input
+
+## Real-Time Monitoring
+
+The project includes a simple live monitoring script that simulates real-time analysis of honeypot logs.
+
+The monitor continuously reads new log entries and prints relevant event data as activity occurs.
+
+## Detection Capabilities
+
+The tool includes rule-based detection logic to identify potentially malicious behavior from honeypot logs:
+
+* **Brute-force detection**
+  - Flags IP addresses exceeding a configurable threshold of failed login attempts
+
+* **Long session detection**
+  - Identifies sessions that persist beyond a defined duration, indicating deeper attacker interaction
+
+* **Suspicious command detection**
+  - Detects common post-exploitation and reconnaissance commands such as:
+    - wget, curl (payload retrieval)
+    - chmod (permission changes)
+    - nc, telnet (network pivoting)
+    - uname, whoami (system enumeration)
+
+These detections simulate basic SOC-style alerting and can be tuned via command-line arguments.
 
 ## Project Structure
 
@@ -32,8 +63,10 @@ cowrie_threat_tool/
 ├─ src/
 │   ├─ parser.py
 │   ├─ analyzer.py
+│   ├─ detector.py
 │   ├─ visualizer.py
 │   ├─ reporter.py
+│   ├─ live_monitor.py
 │   └─ main.py
 │
 ├─ requirements.txt
@@ -95,6 +128,20 @@ Graphs are saved to:
 ```
 output/graphs/
 ```
+
+## Sample Output
+
+### Login Failures Heatmap
+![Heatmap](output/graphs/Heatmap_Failures_Day_VS_Hour_UTC.png)
+
+### Top Source IPs (Failed Logins)
+![Top IPs](output/graphs/Top_SRC_IPs_Login_Failures.png)
+
+### Login Failures by Hour
+![By Hour](output/graphs/Login_Failures_by_Hour_UTC.png)
+
+### Session Duration Distribution
+![Session Duration](output/graphs/Session_Duration_Histogram.png)
 
 Report is saved to:
 

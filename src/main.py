@@ -7,6 +7,12 @@ from parser import (
     #  get_unique_event_types
 )
 
+from detector import (
+    detect_bruteforce_ips,
+    detect_long_sessions,
+    detect_suspicious_commands
+)
+
 from analyzer import (
     get_top_source_ips,
     get_top_usernames,
@@ -19,15 +25,24 @@ from analyzer import (
     add_datetime_column,
     get_activity_by_hour,
     get_input_commands,
-    get_suspicious_commands,
     get_sessions_per_ip,
     get_longest_sessions,
     get_average_session_duration,
-    detect_bruteforce_ips,
-    detect_long_sessions
+    get_top_event_types,
+    get_failed_logins_by_hour,
+    get_failed_logins_by_day,
+    get_top_failed_login_source_ips,
+    get_top_failed_login_usernames,
+    get_session_duration_series,
+    get_failed_login_heatmap_data
 )
 
-from visualizer import plot_bar_series
+from visualizer import (
+    plot_bar_series,
+    plot_line_series,
+    plot_histogram,
+    plot_heatmap
+)
 
 from reporter import (
     build_report,
@@ -77,7 +92,8 @@ def parse_arguments():
 if __name__ == "__main__":
     args = parse_arguments()
 
-    file_path = Path(args.file)
+    base_dir = Path(__file__).resolve().parent.parent
+    file_path = base_dir / args.file
 
     events, invalid_lines = load_cowrie_logs(file_path)
     #  event_types = get_unique_event_types(events)
@@ -116,7 +132,7 @@ if __name__ == "__main__":
     print(get_input_commands(df))
 
     print("\nSuspicious Commands:")
-    print(get_suspicious_commands(df))
+    print(detect_suspicious_commands(df))
 
     print("\nSessions per IP:")
     print(get_sessions_per_ip(df))
@@ -149,11 +165,27 @@ if __name__ == "__main__":
         output_dir.mkdir(parents=True, exist_ok=True)
 
         plot_bar_series(
+            get_top_event_types(df),
+            title="Top Cowrie Event Types (Top 12)",
+            xlabel="eventid",
+            ylabel="count",
+            output_path=output_dir / "Event_Types_Top12.png"
+        )
+
+        plot_bar_series(
             get_top_source_ips(df),
             title="Top Source IPs",
             xlabel="Source IPs",
             ylabel="Count",
             output_path=output_dir / "Top_Source_IPs.png"
+        )
+
+        plot_bar_series(
+            get_top_failed_login_source_ips(df),
+            title="Top Source IPs (Login Failures, Top 15)",
+            xlabel="src_ip",
+            ylabel="failed logins",
+            output_path=output_dir / "Top_SRC_IPs_Login_Failures.png"
         )
 
         plot_bar_series(
@@ -165,11 +197,52 @@ if __name__ == "__main__":
         )
 
         plot_bar_series(
+            get_top_failed_login_usernames(df),
+            title="Top Usernames Attempted (Login Failures, Top 15)",
+            xlabel="username",
+            ylabel="failed logins",
+            output_path=output_dir / "Top_Usernames_Login_Failures.png"
+        )
+
+        plot_bar_series(
             get_activity_by_hour(df),
             title="Activity by Hour",
             xlabel="Hour",
             ylabel="Events",
             output_path=output_dir / "Activity_by_Hour.png"
+        )
+
+        plot_bar_series(
+            get_failed_logins_by_hour(df),
+            title="Login Failures by Hour (UTC)",
+            xlabel="hour (0-23)",
+            ylabel="failed logins",
+            output_path=output_dir / "Login_Failures_by_Hour_UTC.png"
+        )
+
+        plot_line_series(
+            get_failed_logins_by_day(df),
+            title="Login Failures per Day (UTC)",
+            xlabel="day",
+            ylabel="failed logins",
+            output_path=output_dir / "Login_Failures_Per_Day_UTC.png"
+        )
+
+        plot_histogram(
+            get_session_duration_series(df),
+            title="Session Duration Distribution (capped at 99th percentile)",
+            xlabel="seconds",
+            ylabel="sessions",
+            output_path=output_dir / "Session_Duration_Histogram.png",
+            bins=30
+        )
+
+        plot_heatmap(
+            get_failed_login_heatmap_data(df),
+            title="Heatmap: Login Failures (Day vs Hour, UTC)",
+            xlabel="hour (0-23)",
+            ylabel="day",
+            output_path=output_dir / "Heatmap_Failures_Day_VS_Hour_UTC.png"
         )
 
         print(f"\nGraphs saved to: {output_dir}")
@@ -186,7 +259,7 @@ if __name__ == "__main__":
             successful_login_ips=get_successful_login_ips(df),
             activity_by_hour=get_activity_by_hour(df),
             top_command_inputs=get_input_commands(df),
-            suspicious_commands=get_suspicious_commands(df),
+            suspicious_commands=detect_suspicious_commands(df),
             sessions_per_ip=get_sessions_per_ip(df),
             longest_sessions=get_longest_sessions(df),
             average_session_duration=get_average_session_duration(df),

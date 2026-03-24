@@ -4,41 +4,6 @@ from parser import load_cowrie_logs, events_to_dataframe, get_unique_event_types
 from visualizer import plot_bar_series
 from reporter import build_report, save_text_report
 
-SUSPICIOUS_COMMANDS = [
-    "wget",
-    "curl",
-    "chmod",
-    "busybox",
-    "sh",
-    "bash",
-    "python",
-    "perl",
-    "nc",
-    "ncat",
-    "telnet",
-    "ftp",
-    "tftp",
-    "cat /proc",
-    "uname",
-    "whoami",
-    "ps",
-    "sudo"
-]
-
-def get_suspicious_commands(df, limit=20):
-    command_events = df[df["eventid"] == "cowrie.command.input"]
-
-    suspicious_rows = []
-
-    for cmd in command_events["input"].dropna():
-        cmd_lower = cmd.lower()
-        for keyword in SUSPICIOUS_COMMANDS:
-            if keyword in cmd_lower:
-                suspicious_rows.append(cmd)
-                break
-
-    return pd.Series(suspicious_rows).value_counts().head(limit)
-
 def get_top_source_ips(df, limit=10):
     counts = df["src_ip"].value_counts()
     return counts.head(limit)
@@ -105,25 +70,59 @@ def get_average_session_duration(df):
 
     return closed_sessions["duration"].mean()
 
-def detect_bruteforce_ips(df, threshold=20):
-    failed_logins = df[df["eventid"] == "cowrie.login.failed"]
+def get_top_event_types(df, limit=12):
+    return df["eventid"].value_counts().head(limit)
 
-    counts = failed_logins["src_ip"].value_counts()
+def get_failed_login_events(df):
+    return df[df["eventid"] == "cowrie.login.failed"].copy()
 
-    suspicious = counts[counts >= threshold]
+def get_failed_logins_by_hour(df):
+    failed = get_failed_login_events(df)
+    failed["timestamp"] = pd.to_datetime(failed["timestamp"], errors="coerce")
+    return failed["timestamp"].dt.hour.value_counts().sort_index()
 
-    return suspicious
+def get_failed_logins_by_day(df):
+    failed = get_failed_login_events(df)
+    failed["timestamp"] = pd.to_datetime(failed["timestamp"], errors="coerce")
+    return failed["timestamp"].dt.date.value_counts().sort_index()
 
-def detect_long_sessions(df, threshold=30):
-    closed_sessions = df[df["eventid"] == "cowrie.session.closed"].copy()
-    closed_sessions["duration"] = pd.to_numeric(closed_sessions["duration"], errors="coerce")
+def get_top_failed_login_source_ips(df, limit=15):
+    failed = get_failed_login_events(df)
+    return failed["src_ip"].value_counts().head(limit)
 
-    suspicious_sessions = closed_sessions[closed_sessions["duration"] >= threshold]
+def get_top_failed_login_usernames(df, limit=15):
+    failed = get_failed_login_events(df)
+    return failed["username"].value_counts().head(limit)
 
-    return suspicious_sessions[["session", "src_ip", "duration"]].sort_values(
-        by="duration",
-        ascending=False
+def get_session_duration_series(df, cap_percentile=0.99):
+    closed = df[df["eventid"] == "cowrie.session.closed"].copy()
+    closed["duration"] = pd.to_numeric(closed["duration"], errors="coerce")
+    durations = closed["duration"].dropna()
+
+    if durations.empty:
+        return durations
+
+    cap_value = durations.quantile(cap_percentile)
+    return durations[durations <= cap_value]
+
+def get_failed_login_heatmap_data(df):
+    failed = get_failed_login_events(df)
+    failed["timestamp"] = pd.to_datetime(failed["timestamp"], errors="coerce")
+
+    failed["day"] = failed["timestamp"].dt.date
+    failed["hour"] = failed["timestamp"].dt.hour
+
+    heatmap_data = failed.pivot_table(
+        index="day",
+        columns="hour",
+        values="eventid",
+        aggfunc="count",
+        fill_value=0
     )
+
+    heatmap_data = heatmap_data.reindex(columns=range(24), fill_value=0)
+
+    return heatmap_data
 
 #  if __name__ == "__main__":
     file_path = Path(__file__).resolve().parent.parent / "data" / "cowrie_week_merged.json"
